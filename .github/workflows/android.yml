@@ -2,7 +2,7 @@ name: Simple APK Build
 
 on:
   push:
-    branches: [ "main" ] # Triggers whenever you push to main branch
+    branches: [ "main" ]
 
 jobs:
   build:
@@ -27,5 +27,5 @@ jobs:
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: my-app-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: voice-music-apk
+        path: "**/build/outputs/apk/debug/*.apk"  # This finds the APK across all subfolders automatically

@@ -1,0 +1,31 @@
+name: Simple APK Build
+
+on:
+  push:
+    branches: [ "main" ] # Triggers whenever you push to main branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Make Gradle Executable
+      run: chmod +x ./gradlew
+
+    - name: Build Unsigned Debug APK
+      run: ./gradlew assembleDebug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: my-app-apk
+        path: app/build/outputs/apk/debug/app-debug.apk

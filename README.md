@@ -9,7 +9,13 @@ and more.
 ## How to build the APK (GitHub Actions - no PC setup needed)
 
 1. Create a new **public or private** GitHub repo.
-2. Upload every file in this zip, keeping the folder structure exactly as-is.
+2. Upload every file in this zip, keeping the folder structure exactly as-is - including `gradlew`,
+   `gradlew.bat`, and the `gradle/` folder at the repo root. These are the real Gradle wrapper (not
+   placeholders), so the build doesn't depend on GitHub's runner having a compatible Gradle version
+   pre-installed. If you upload via GitHub's web "Add file" interface rather than `git push`, it can
+   strip the executable bit off `gradlew` - the workflow re-sets it automatically, so this is handled
+   either way, but if you ever run `./gradlew` yourself locally and get "Permission denied", run
+   `chmod +x gradlew` first.
 3. Push to the `main` branch (or click **Actions -> Build APKs -> Run workflow** to trigger it
    manually).
 4. Wait for the build to finish (~10-15 min the first time - it downloads a speech-recognition

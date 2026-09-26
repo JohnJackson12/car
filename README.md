@@ -136,6 +136,18 @@ line against the Android build. If you spot something from the original that isn
 specifically what it is and I'll port it - that's a much faster and more reliable path than me
 re-guessing at completeness from memory again.
 
+## A build failure you may have already hit, and the fix
+
+An earlier version of this project cloned the tag-editing library (jaudiotagger) from its GitHub
+repo as a CI step and copied it into the source tree at build time. If your build failed with
+errors like `Unresolved reference: jaudiotagger` in `TagIO.kt`, that's why - it's a fragile design
+I shouldn't have used (one more network call that can fail, one more way to get a path wrong). It's
+fixed now: the library's source is committed directly in this zip, under
+`app/src/main/java/org/jaudiotagger/` (about 470 files, LGPL-2.1 licensed - see
+`THIRD_PARTY_NOTICES.txt`), so there's nothing to clone and nothing to go wrong there. The workflow
+now just double-checks that folder made it into your repo and fails with a clear message if not,
+instead of the confusing "unresolved reference" error.
+
 ## How this was verified before being handed to you
 
 I don't have a real Android device or emulator in this environment, so I couldn't do what would

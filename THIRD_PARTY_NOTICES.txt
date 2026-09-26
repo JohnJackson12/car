@@ -1,0 +1,9 @@
+app/src/main/java/org/jaudiotagger/ contains jaudiotagger (originally "Entagged Audio Tag library"),
+vendored directly into this project's source tree so the build doesn't depend on
+cloning another repository at build time.
+
+Source: https://github.com/AdrienPoupa/jaudiotagger (an Android-compatible fork), tag 2.2.3
+Original project: https://github.com/ijabz/jaudiotagger
+License: GNU Lesser General Public License, version 2.1 (see individual file headers)
+
+Unmodified from the upstream fork.

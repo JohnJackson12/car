@@ -159,6 +159,16 @@ attaching it), so it crashed 100% of the time, on every device. Switched both to
 caused the identical crash on the car head unit too, not just during phone testing, so it needed
 fixing before either APK was worth trying in the car.
 
+## "Stuck" on the permission screen
+
+If tapping "Grant permissions" seemed to do nothing, that's a well-known Android trap, not a hang:
+if a permission gets denied with "Don't ask again" (or denied twice on some versions), Android
+permanently blocks the app from ever showing that popup again - tapping the button silently does
+nothing forever after that, which looks exactly like being stuck. The app now detects this case and
+shows an "Open app settings" button instead, which takes you straight to the screen where you can
+flip the permission on by hand. Coming back to the app afterward now also re-checks automatically,
+so you don't need to force-restart it.
+
 ## How this was verified before being handed to you
 
 I don't have a real Android device or emulator in this environment, so I couldn't do what would

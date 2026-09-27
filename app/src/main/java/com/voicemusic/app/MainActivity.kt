@@ -144,10 +144,25 @@ class MainActivity : Activity(), PlaybackService.UiListener {
         body.addView(Ui.textView(this, "A couple of permissions are needed:", 15f, false, Color.LTGRAY))
         if (Manifest.permission.RECORD_AUDIO in missing) body.addView(Ui.textView(this, "\u2022 Microphone - for voice commands", 14f))
         if (Manifest.permission.READ_EXTERNAL_STORAGE in missing || Manifest.permission.WRITE_EXTERNAL_STORAGE in missing) body.addView(Ui.textView(this, "\u2022 Storage - to find and manage your music files", 14f))
-        body.addView(Ui.button(this, "Grant permissions") {
-            androidx.core.app.ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERM_REQ)
-        }.apply { val p = Ui.dp(this@MainActivity, 24); (this as Button).setPadding(p, p/2, p, p/2) })
+
+        // If a permission was denied with "Don't ask again" (or denied twice on some versions),
+        // Android will never show the popup again no matter how many times we ask - it just silently
+        // does nothing, which looks exactly like the button being stuck. Detect that case and send
+        // the person to the app's system settings page to flip it on manually instead.
+        val permanentlyDenied = missing.any { !androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(this, it) && askedOnce }
+        if (permanentlyDenied) {
+            body.addView(Ui.textView(this, "One or more permissions were denied permanently. Tapping the button below won't show a popup - use the Settings screen it opens to turn them on by hand (under Permissions).", 13f, false, Color.rgb(255, 190, 120)).apply { setPadding(0, Ui.dp(this@MainActivity, 8), 0, Ui.dp(this@MainActivity, 8)) })
+            body.addView(Ui.button(this, "Open app settings") {
+                startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName")))
+            }.apply { val p = Ui.dp(this@MainActivity, 24); (this as Button).setPadding(p, p/2, p, p/2) })
+        } else {
+            body.addView(Ui.button(this, "Grant permissions") {
+                askedOnce = true
+                androidx.core.app.ActivityCompat.requestPermissions(this, missing.toTypedArray(), PERM_REQ)
+            }.apply { val p = Ui.dp(this@MainActivity, 24); (this as Button).setPadding(p, p/2, p, p/2) })
+        }
     }
+    private var askedOnce = false
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
@@ -186,7 +201,14 @@ class MainActivity : Activity(), PlaybackService.UiListener {
         })
     }
 
-    override fun onResume() { super.onResume(); progressHandler.post(progressTick) }
+    override fun onResume() {
+        super.onResume()
+        progressHandler.post(progressTick)
+        // Catches coming back from the "Open app settings" screen after manually granting a
+        // permission there - re-checks and moves past the permission screen if everything's granted
+        // now. Harmless no-op if the main screen is already up and the service is already bound.
+        if (permissionScreen.visibility == View.VISIBLE) checkPermissionsThenStart()
+    }
     override fun onPause() { super.onPause(); progressHandler.removeCallbacks(progressTick) }
     override fun onDestroy() {
         super.onDestroy()

@@ -1,0 +1,78 @@
+name: Build APKs
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v4
+
+      - name: Install required SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # --- Offline speech model (bundled into the APK so voice works with no internet) ---
+      - name: Cache Vosk model
+        id: model-cache
+        uses: actions/cache@v4
+        with:
+          path: vosk-model
+          key: vosk-model-small-en-us-0.15
+
+      - name: Download Vosk speech model
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -L --retry 5 --retry-delay 5 -o model.zip https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+          unzip -q model.zip -d model_tmp
+          mv model_tmp/vosk-model-small-en-us-0.15 vosk-model
+          rm -rf model.zip model_tmp
+
+      - name: Put model into app assets
+        run: |
+          mkdir -p app/src/main/assets
+          rm -rf app/src/main/assets/vosk-model
+          cp -r vosk-model app/src/main/assets/vosk-model
+          ls app/src/main/assets/vosk-model
+
+      # The tag-editing library (jaudiotagger, an Android-compatible fork) is committed directly
+      # under app/src/main/java/org/jaudiotagger/ rather than cloned at build time - one less
+      # network dependency and one less way for the build to fail. This just confirms it's there.
+      - name: Verify vendored tag-editing library is present
+        run: |
+          count=$(find app/src/main/java/org/jaudiotagger -name "*.java" 2>/dev/null | wc -l)
+          echo "jaudiotagger source files: $count"
+          if [ "$count" -lt 100 ]; then
+            echo "::error::app/src/main/java/org/jaudiotagger is missing or incomplete. Did the upload include every file in the zip, including app/src/main/java/org/?"
+            exit 1
+          fi
+
+      - name: Build APKs (standard + car)
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Collect APKs
+        run: |
+          mkdir -p out
+          find app/build/outputs/apk -name "*.apk" -exec cp {} out/ \;
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VoiceMusic-APKs
+          path: out/*.apk
+          retention-days: 30

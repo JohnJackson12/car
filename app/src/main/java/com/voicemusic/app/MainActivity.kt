@@ -74,7 +74,12 @@ class MainActivity : Activity(), PlaybackService.UiListener {
     private lateinit var npVolume: SeekBar
     private var userDraggingSeek = false
 
-    private val progressHandler = android.os.Handler(mainLooper)
+    // NOTE: must use the static Looper.getMainLooper(), not the instance property `mainLooper`.
+    // This is a field initializer, which runs during the Activity's constructor - before Android
+    // has attached its base Context - so any Context-dependent call (like `mainLooper`) here would
+    // crash with a NullPointerException on every single launch. Looper.getMainLooper() is a static
+    // process-wide lookup that doesn't need the Activity to be attached yet.
+    private val progressHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val progressTick = object : Runnable {
         override fun run() { refreshProgress(); progressHandler.postDelayed(this, 500) }
     }

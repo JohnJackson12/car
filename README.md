@@ -148,6 +148,17 @@ fixed now: the library's source is committed directly in this zip, under
 now just double-checks that folder made it into your repo and fails with a clear message if not,
 instead of the confusing "unresolved reference" error.
 
+## A launch crash you already hit, and the fix
+
+If the app installed but crashed immediately on opening (`NullPointerException` on
+`getMainLooper()` in the crash log), that's a real bug that's now fixed. Two screens created a
+background timer using `mainLooper`, a property that depends on the Activity's Context being fully
+attached - but that field was set up too early (during construction, before Android finishes
+attaching it), so it crashed 100% of the time, on every device. Switched both to
+`Looper.getMainLooper()`, a static lookup that doesn't have that timing dependency. This would have
+caused the identical crash on the car head unit too, not just during phone testing, so it needed
+fixing before either APK was worth trying in the car.
+
 ## How this was verified before being handed to you
 
 I don't have a real Android device or emulator in this environment, so I couldn't do what would

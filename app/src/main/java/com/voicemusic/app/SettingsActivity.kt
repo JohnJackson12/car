@@ -101,7 +101,8 @@ class SettingsActivity : Activity() {
     }
 
     private lateinit var levelMeter: ProgressBar
-    private val meterHandler = android.os.Handler(mainLooper)
+    // Static lookup, not the Context-dependent `mainLooper` property - see the note in MainActivity.kt.
+    private val meterHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val meterTick = object : Runnable {
         override fun run() { levelMeter.progress = ((svc()?.voice?.currentLevel() ?: 0.0) * 100).toInt(); meterHandler.postDelayed(this, 200) }
     }

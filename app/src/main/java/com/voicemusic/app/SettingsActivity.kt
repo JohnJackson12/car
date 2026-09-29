@@ -40,6 +40,7 @@ class SettingsActivity : Activity() {
         })
         body.addView(micDevicePicker())
         body.addView(switchRow("Spoken confirmations (rating, delete, undo, status\u2026)", config.spokenFeedback) { config.spokenFeedback = it })
+        body.addView(switchRow("Show \"Heard: ...\" text on screen (debug)", config.showLastHeard) { config.showLastHeard = it })
         body.addView(sliderRow("Mic sensitivity (gain)", config.micGain, 0.5, 12.0) { config.micGain = it })
         body.addView(sliderRow("Command cooldown (sec)", config.commandCooldownSec, 0.3, 5.0) { config.commandCooldownSec = it })
         body.addView(sliderRow("Duck volume while listening", config.duckVolume, 0.0, 1.0) { config.duckVolume = it })

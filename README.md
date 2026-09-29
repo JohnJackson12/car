@@ -169,6 +169,39 @@ shows an "Open app settings" button instead, which takes you straight to the scr
 flip the permission on by hand. Coming back to the app afterward now also re-checks automatically,
 so you don't need to force-restart it.
 
+## The "App Not Responding" crash after granting permissions
+
+If the app hung and Android showed an "Application Not Responding" dialog right after the
+permission screen, that was a specific, well-defined Android rule I'd violated: once a service is
+started as a foreground service, it must call `startForeground()` (which shows the persistent
+notification) within a few seconds, or the system force-kills it. My code only did that reactively,
+triggered by a song starting to play - which never happened on a fresh install with no music added
+yet, so it never ran at all and the system killed the service after its grace period expired. Fixed
+by calling it immediately and unconditionally the moment the playback service starts, showing a
+"Nothing playing yet" notification until you add some music.
+
+## Three more fixes: mic hearing the speakers, weak album art, and a noisy debug overlay
+
+- **The mic was likely picking up the device's own speaker output**, which explains volume dropping
+  for no visible reason: the app's "duck the volume while listening" logic can fire from a false
+  partial match, and music bleeding into the mic is exactly the kind of thing that triggers false
+  matches. Fixed properly, not worked around: the app now attaches Android's real acoustic-echo-
+  cancellation and noise-suppression effects to the microphone session (when the device supports
+  them - most do), which actively subtracts the speaker's own output from what the recognizer hears,
+  plus prefers the one audio source Android is most likely to apply that cancellation to
+  automatically. This isn't guesswork - `AcousticEchoCanceler`/`NoiseSuppressor` are Android's real,
+  documented APIs for exactly this problem, verified against the actual platform before use. One
+  honest trade-off: this audio path is sometimes very slightly quieter on some devices; the existing
+  mic-sensitivity slider in Settings compensates if you notice that.
+- **The "Heard: ..." text is now off by default** (Settings has a toggle to turn it back on if you
+  want it for debugging). It wasn't a bug, just noise nobody asked for.
+- **Album art is now more reliable, especially for FLAC/OGG files**: Android's own art decoder is
+  known to be inconsistent for those two formats specifically (this is a real, documented Android
+  limitation, not specific to this app). Added a fallback that reads the artwork directly out of the
+  file's own tag structure when Android's decoder comes back empty. I didn't just assume this works -
+  I built a real FLAC file with a real embedded picture and ran it through the exact code path this
+  app uses, byte for byte, before shipping it.
+
 ## How this was verified before being handed to you
 
 I don't have a real Android device or emulator in this environment, so I couldn't do what would

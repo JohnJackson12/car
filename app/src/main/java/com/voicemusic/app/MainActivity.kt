@@ -794,7 +794,7 @@ class MainActivity : Activity(), PlaybackService.UiListener {
     override fun onVoiceEvent(kind: String, text: String) {
         Bg.post {
             when (kind) {
-                "raw" -> { lastHeardLabel.text = "Heard: \u201C$text\u201D"; lastHeardLabel.visibility = View.VISIBLE }
+                "raw" -> if (app.config.showLastHeard) { lastHeardLabel.text = "Heard: \u201C$text\u201D"; lastHeardLabel.visibility = View.VISIBLE }
                 "error" -> updateMicIndicator()
                 "listen_start" -> micIndicator.setTextColor(Color.rgb(255, 200, 80))
                 "listen_end" -> updateMicIndicator()

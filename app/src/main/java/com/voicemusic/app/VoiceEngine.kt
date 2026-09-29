@@ -13,6 +13,8 @@ import org.vosk.LibVosk
 import org.vosk.LogLevel
 import org.vosk.Model
 import org.vosk.Recognizer
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.NoiseSuppressor
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.tanh
@@ -38,8 +40,13 @@ class VoiceEngine(private val ctx: Context, private val config: Config) {
         private const val SAMPLE_RATE = 16000
         private const val BLOCK_FRAMES = 4000                 // 250 ms, matches the PC app exactly
         private const val PARTIAL_WAKE_DEBOUNCE = 4
+        // VOICE_COMMUNICATION first: on most devices it's the one audio path the OS wires up to
+        // actually run acoustic echo cancellation (removing the device's own speaker/music output
+        // from what the mic hears), which is exactly what "only real mic input, ignore the speaker"
+        // needs. The explicit AcousticEchoCanceler effect attached below is a second, independent
+        // layer on top of whichever source ends up used.
         private val SOURCES_AUTO = intArrayOf(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION, MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION, MediaRecorder.AudioSource.VOICE_RECOGNITION,
             MediaRecorder.AudioSource.MIC, MediaRecorder.AudioSource.DEFAULT, MediaRecorder.AudioSource.CAMCORDER)
     }
 
@@ -122,6 +129,36 @@ class VoiceEngine(private val ctx: Context, private val config: Config) {
         for (i in 0 until n) samples[i] = (tanh(samples[i] * gain / 32767.0) * 32767.0).toInt().toShort()
     }
 
+    private var aec: AcousticEchoCanceler? = null
+    private var ns: NoiseSuppressor? = null
+
+    /**
+     * Attaches real acoustic-echo-cancellation and noise-suppression effects to the mic's audio
+     * session, when the device supports them. This is the actual fix for "the mic shouldn't pick up
+     * whatever's playing through the speakers" - it doesn't just reorder which audio source is tried,
+     * it actively subtracts the device's own speaker output from what the recognizer receives.
+     * Silently does nothing on devices without hardware/software support (checked via isAvailable()
+     * first, so this never throws or behaves differently on those devices - they just don't benefit).
+     */
+    private fun attachEchoCancellation(sessionId: Int) {
+        try {
+            if (AcousticEchoCanceler.isAvailable()) {
+                aec = AcousticEchoCanceler.create(sessionId)?.apply { enabled = true }
+            }
+        } catch (e: Throwable) { CrashLog.note("AcousticEchoCanceler unavailable", e) }
+        try {
+            if (NoiseSuppressor.isAvailable()) {
+                ns = NoiseSuppressor.create(sessionId)?.apply { enabled = true }
+            }
+        } catch (e: Throwable) { CrashLog.note("NoiseSuppressor unavailable", e) }
+    }
+
+    private fun releaseEchoCancellation() {
+        try { aec?.release() } catch (e: Throwable) { }
+        try { ns?.release() } catch (e: Throwable) { }
+        aec = null; ns = null
+    }
+
     private fun openRecord(): AudioRecord? {
         val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         if (minBuf <= 0) return null
@@ -144,6 +181,7 @@ class VoiceEngine(private val ctx: Context, private val config: Config) {
                     val dev = am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.id == config.micDeviceId }
                     if (dev != null) rec.setPreferredDevice(dev)
                 }
+                attachEchoCancellation(rec.audioSessionId)
                 return rec
             } catch (e: Exception) { CrashLog.note("mic source $src unavailable", e) }
         }
@@ -273,6 +311,7 @@ class VoiceEngine(private val ctx: Context, private val config: Config) {
             CrashLog.note("voice engine loop failed", e)
             Bg.post { listener?.onError("Voice recognition stopped unexpectedly: ${e.message}") }
         } finally {
+            releaseEchoCancellation()
             try { record.stop() } catch (e: Throwable) { }
             try { record.release() } catch (e: Throwable) { }
             try { localRecognizer?.close() } catch (e: Throwable) { }

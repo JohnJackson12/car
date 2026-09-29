@@ -116,6 +116,12 @@ class PlaybackService : Service() {
         }
 
         createChannel()
+        // MUST happen immediately and unconditionally: Android requires a foreground service to
+        // call startForeground() within a few seconds of being started via startForegroundService(),
+        // or the system kills it with an ANR ("did not then call Service.startForeground()"). This
+        // used to only happen reactively inside the song-changed callback, which never fired on a
+        // fresh install with nothing queued yet - exactly the ANR this fixes.
+        updateNotification(engine.currentSong())
         SpokenFeedback.init(this)
         val (id, pos) = Pair(app.config.resumeSongId, app.config.resumePositionSec)
         if (id.isNotEmpty() && app.library.get(id) != null) engine.cueSongId(id, pos, true)
@@ -182,7 +188,11 @@ class PlaybackService : Service() {
             .addAction(android.R.drawable.ic_media_next, "Next", actionIntent(ACTION_NEXT))
             .setStyle(androidx.media.app.NotificationCompat.MediaStyle().setMediaSession(session.sessionToken).setShowActionsInCompactView(0, 1, 2))
             .build()
-        if (Build.VERSION.SDK_INT >= 29) startForeground(NOTI_ID, n, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        // Matches the AndroidManifest's foregroundServiceType="mediaPlayback|microphone" exactly -
+        // declaring both up front (not just mediaPlayback) avoids a second, similar Android 14
+        // violation once voice recognition starts using the microphone.
+        if (Build.VERSION.SDK_INT >= 29) startForeground(NOTI_ID, n,
+            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK or android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         else startForeground(NOTI_ID, n)
     }
 

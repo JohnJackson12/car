@@ -59,6 +59,9 @@ class Config(ctx: Context) {
     var voicePlayByTitle by Bool(sp, "voice_play_by_title", true)
     var voiceMaxTitles by Int_(sp, "voice_max_titles", 1500)
     var spokenFeedback by Bool(sp, "spoken_feedback", true)
+    // Off by default: a running "Heard: ..." transcript on screen is more distracting than useful
+    // for most people while driving. Left available in Settings for anyone debugging recognition.
+    var showLastHeard by Bool(sp, "show_last_heard", false)
 
     // -- library / playback ----------------------------------------------------------------
     var libraryFolders by StrList(sp, "library_folders", emptyList())

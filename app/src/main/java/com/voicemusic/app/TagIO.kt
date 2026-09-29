@@ -255,18 +255,40 @@ object TagIO {
         return AudioInfo(f.extension.uppercase().ifEmpty { "?" }, bitrate, rate, ch, if (f.exists()) f.length() else 0L, dur)
     }
 
-    /** Embedded cover art, scaled down to at most maxDim on the long side; null if none / unreadable. */
-    fun readAlbumArt(path: String, maxDim: Int = 600): Bitmap? {
-        val mmr = MediaMetadataRetriever()
+    private fun decodeScaled(bytes: ByteArray, maxDim: Int): Bitmap? {
         return try {
-            mmr.setDataSource(path)
-            val bytes = mmr.embeddedPicture ?: return null
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
             var sample = 1
             while (bounds.outWidth / (sample * 2) >= maxDim && bounds.outHeight / (sample * 2) >= maxDim) sample *= 2
             val opts = BitmapFactory.Options().apply { inSampleSize = sample }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-        } catch (e: Throwable) { null } finally { try { mmr.release() } catch (e: Throwable) { } }
+        } catch (e: Throwable) { null }
+    }
+
+    /**
+     * Embedded cover art, scaled down to at most maxDim on the long side; null if none / unreadable.
+     * Tries Android's own decoder first (fast, works fine for MP3/M4A), then falls back to reading
+     * the artwork directly out of the file's tag structure with jaudiotagger. Android's built-in
+     * decoder is known to be unreliable specifically for FLAC and OGG embedded pictures depending on
+     * device/OS version - the fallback exists because of that, not as a generic safety net.
+     */
+    fun readAlbumArt(path: String, maxDim: Int = 600): Bitmap? {
+        val fromAndroid = try {
+            val mmr = MediaMetadataRetriever()
+            try {
+                mmr.setDataSource(path)
+                mmr.embeddedPicture?.let { decodeScaled(it, maxDim) }
+            } finally { try { mmr.release() } catch (e: Throwable) { } }
+        } catch (e: Throwable) { null }
+        if (fromAndroid != null) return fromAndroid
+
+        return try {
+            init()
+            val tag = AudioFileIO.read(File(path)).tag ?: return null
+            val bytes = tag.firstArtwork?.binaryData ?: return null
+            decodeScaled(bytes, maxDim)
+        } catch (e: Throwable) { null }
     }
 }
